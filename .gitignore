@@ -141,3 +141,20 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# ===== Python / Salon.JP Daily Fetcher =====
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# ローカル生成物（コミット禁止）
+session/
+data/
+# logs は上部の "logs" で除外済み
+
+# 認証情報(.env.local)は上部の .env.* で除外済み。雛形だけはコミットする
+!.env.local.example
