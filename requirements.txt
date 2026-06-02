@@ -1,0 +1,6 @@
+# 実行時依存（本番）
+# 導入: python -m pip install -r requirements.txt
+#       python -m playwright install chromium
+playwright>=1.60
+python-dotenv>=1.2
+PyYAML>=6.0

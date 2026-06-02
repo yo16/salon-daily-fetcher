@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# リポジトリルートを import パスに追加し、`from src.x import ...` を可能にする
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,37 @@
+# Salon.JP Daily Fetcher 設定ファイル
+# - 秘密情報(ID/PW)は .env.local に置く。このファイルには置かない。
+# - "<...>" のプレースホルダは、ログイン後の実画面を確認して実値に置き換えること。
+#   （プレースホルダが残っていると config 検証でエラーになる）
+
+# --- 対象URL ---
+login_url: "https://salon.jp/authentications/login"
+list_url: "<対象サロンの記事一覧URL>"          # 例: https://salon.jp/xxxx/articles
+
+# --- CSSセレクタ（サイト構造に依存する壊れやすい部分のみ集約）---
+selectors:
+  login_email: "input[name='email']"
+  login_password: "input[name='password']"
+  login_submit: "button[type='submit']"
+  logged_in_mark: "<ログイン後にだけ出る要素>"   # ログイン成否判定に使う
+  list_item: "<記事カードのセレクタ>"            # 一覧の各記事の繰り返し単位
+  item_link: "<記事リンク a>"                    # list_item 内の記事リンク
+  item_title: "<タイトル>"                       # list_item 内のタイトル
+  item_date: "<日時>"                            # list_item 内の日時
+  body: "<本文コンテナ>"                         # 記事ページの本文
+  noise: []                                      # 本文から除去するノイズ要素(任意)。例: [".ad", "nav"]
+
+# --- 動作設定 ---
+headless: true
+timeout_ms: 15000          # 要素待機の既定タイムアウト(ms)
+throttle_seconds: 2        # 記事間の待機(秒)。過剰アクセス回避
+max_items_per_run: 50      # 1実行で取得する本文の上限(安全装置)
+order: "newest_first"      # 当日から過去へ遡る
+retry:
+  max_attempts: 3
+  backoff_seconds: 2
+on_login_failure: "abort"      # abort | continue
+on_element_missing: "skip"     # skip | abort
+save_debug_on_error: true      # 失敗時にスクショ+HTMLダンプを保存
+output_csv: false              # 一覧CSVエクスポートの要否
+body_as_markdown: false        # true: HTML→Markdown変換 / false(既定): inner_text
+lock_stale_minutes: 60         # ロックファイルを stale とみなす経過分
