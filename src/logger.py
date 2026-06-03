@@ -7,6 +7,7 @@
 """
 
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -35,7 +36,12 @@ def setup_logger(log_dir: str = "logs", debug: bool = False) -> logging.Logger:
         Path(log_dir) / f"run-{date_str}.log", encoding="utf-8"
     )
     file_handler.setFormatter(fmt)
-    console_handler = logging.StreamHandler()
+    # Windows コンソール(cp932)での日本語文字化けを防ぐため UTF-8 を強制する
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(fmt)
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
