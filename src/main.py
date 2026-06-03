@@ -20,12 +20,9 @@ from playwright.sync_api import sync_playwright
 
 from . import output
 from .config import load_config, load_credentials
-from .fetch import extract_list, fetch_body
+from .fetch import extract_articles
 from .logger import redact_url, save_debug, setup_logger, step, write_summary
-from .models import (
-    AppError, Article, ConfigError, ExtractionError, LockError, LoginError,
-    RunSummary,
-)
+from .models import AppError, ConfigError, LockError, LoginError, RunSummary
 from .session import ensure_logged_in, new_context
 
 LOCK_PATH = "data/.lock"
@@ -100,33 +97,30 @@ def main() -> int:
                 ensure_logged_in(page, cfg, creds, logger=step("login"))
 
                 today = date.today()
-                listed = extract_list(page, cfg, today=today, logger=step("extract_list"))
-                summary.listed_count = len(listed)
-                new_in_list = output.merge_listed(index, listed)
-                targets = output.select_targets(listed, index, cfg.max_items_per_run)
-                step("extract_list").info(
-                    f"listed={len(listed)} new_in_list={new_in_list} targets={len(targets)}"
+                # 本文はタイムライン内にインライン表示されるため、ここで本文込みで取得する
+                articles = extract_articles(page, cfg, today=today, logger=step("extract"))
+                metas = [a.meta for a in articles]
+                by_id = {a.meta.id: a for a in articles}
+                summary.listed_count = len(metas)
+                new_in_list = output.merge_listed(index, metas)
+                targets = output.select_targets(metas, index, cfg.max_items_per_run)
+                step("extract").info(
+                    f"listed={len(metas)} new_in_list={new_in_list} targets={len(targets)}"
                 )
                 if len(targets) >= cfg.max_items_per_run:
-                    step("extract_list").info(
+                    step("extract").info(
                         f"上限 {cfg.max_items_per_run} 件で打ち切り（未処理が残る場合は次回継続）"
                     )
 
-                lg = step("fetch_body")
+                lg = step("save")
                 for meta in targets:
-                    try:
-                        body = fetch_body(page, cfg, meta.url, logger=lg)
-                        article = Article(meta=meta, body=body, fetched_at=_now())
-                        md_path = output.save_article_md(article)
-                        output.upsert_index(index, article, md_path)
-                        summary.new_count += 1
-                        lg.info(f"saved {meta.id} ({redact_url(meta.url)})")
-                    except ExtractionError as e:
-                        summary.failed_count += 1
-                        lg.error(f"記事取得失敗 {meta.id}: {e}")
-                        if cfg.on_element_missing == "abort":
-                            raise
-                    time.sleep(cfg.throttle_seconds)
+                    art = by_id.get(meta.id)
+                    if art is None:
+                        continue
+                    md_path = output.save_article_md(art)
+                    output.upsert_index(index, art, md_path)
+                    summary.new_count += 1
+                    lg.info(f"saved {meta.id} ({redact_url(meta.url)})")
 
                 summary.skipped_count = max(
                     0, summary.listed_count - summary.new_count - summary.failed_count

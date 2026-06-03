@@ -14,7 +14,7 @@ from src.models import (
 def _selectors() -> Selectors:
     return Selectors(
         login_email="a", login_password="b", login_submit="c",
-        logged_in_mark="d", list_item="e", item_link="f",
+        logged_in_mark="d", list_item="e", item_author="f",
         item_title="g", item_date="h", body="i",
     )
 

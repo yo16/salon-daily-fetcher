@@ -17,12 +17,14 @@ def _valid_config_dict() -> dict:
             "login_submit": "button[type='submit']",
             "logged_in_mark": ".user-menu",
             "list_item": ".article-card",
-            "item_link": "a.article-link",
+            "item_author": ".user-name",
             "item_title": ".title",
             "item_date": ".date",
             "body": ".article-body",
+            "item_image": ".thumb",
             "noise": [".ad", "nav"],
         },
+        "author_filter": "西野亮廣エンタメ研究所",
         "headless": True,
         "timeout_ms": 15000,
         "throttle_seconds": 2,
@@ -51,6 +53,9 @@ def test_load_valid_config(tmp_path):
     assert cfg.list_url.endswith("/articles")
     assert cfg.selectors.body == ".article-body"
     assert cfg.selectors.noise == [".ad", "nav"]
+    assert cfg.selectors.item_author == ".user-name"
+    assert cfg.selectors.item_image == ".thumb"
+    assert cfg.author_filter == "西野亮廣エンタメ研究所"
     assert cfg.retry.max_attempts == 3
     assert cfg.throttle_seconds == 2.0
 

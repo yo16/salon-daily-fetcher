@@ -32,7 +32,7 @@ def test_config_yaml_has_required_selectors():
     selectors = _load_config()["selectors"]
     required = [
         "login_email", "login_password", "login_submit", "logged_in_mark",
-        "list_item", "item_link", "item_title", "item_date", "body",
+        "list_item", "item_author", "item_title", "item_date", "body",
     ]
     for sel in required:
         assert sel in selectors, f"missing selector: {sel}"

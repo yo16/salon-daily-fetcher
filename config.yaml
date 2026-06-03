@@ -4,21 +4,27 @@
 #   （プレースホルダが残っていると config 検証でエラーになる）
 
 # --- 対象URL ---
-login_url: "https://salon.jp/authentications/login"
-list_url: "<対象サロンの記事一覧URL>"          # 例: https://salon.jp/xxxx/articles
+login_url: "https://salon.jp/authentications/login_individual"
+list_url: "https://salon.jp/nishino"            # ログイン後のタイムライン（西野亮廣エンタメ研究所）
+
+# 取得対象を投稿者で絞り込む（タイムラインは複数投稿者が混在するため）。
+# 空文字にするとフィルタ無効（全投稿が対象）。
+author_filter: "西野亮廣エンタメ研究所"
 
 # --- CSSセレクタ（サイト構造に依存する壊れやすい部分のみ集約）---
+# 本文は個別ページに遷移せず、タイムライン内(list_item)から相対セレクタで取得する。
 selectors:
-  login_email: "input[name='email']"
-  login_password: "input[name='password']"
+  login_email: "input[name='ind_email']"
+  login_password: "input[name='ind_password']"
   login_submit: "button[type='submit']"
-  logged_in_mark: "<ログイン後にだけ出る要素>"   # ログイン成否判定に使う
-  list_item: "<記事カードのセレクタ>"            # 一覧の各記事の繰り返し単位
-  item_link: "<記事リンク a>"                    # list_item 内の記事リンク
-  item_title: "<タイトル>"                       # list_item 内のタイトル
-  item_date: "<日時>"                            # list_item 内の日時
-  body: "<本文コンテナ>"                         # 記事ページの本文
-  noise: []                                      # 本文から除去するノイズ要素(任意)。例: [".ad", "nav"]
+  logged_in_mark: "#js-timeline-container"                              # ログイン後タイムラインの存在で判定
+  list_item: "#js-timeline-container > div > div.timeline-view-all > div"  # 各投稿の繰り返し単位
+  item_author: ".user-name"                      # list_item 内の投稿者名（author_filter と照合）
+  item_title: ".timeline-header-message"         # list_item 内のタイトル
+  item_date: ".posted"                           # list_item 内の日時（相対表記）
+  body: ".timeline-body-text"                    # list_item 内の本文（インライン全文）
+  item_image: ".timeline-body-image"             # 記事ID抽出用（src の /articles/<id>/）。無くても可
+  noise: []                                      # 本文から除去するノイズ要素(任意)。例: [".ad"]
 
 # --- 動作設定 ---
 headless: true

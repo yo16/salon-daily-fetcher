@@ -18,7 +18,7 @@ _PLACEHOLDER_RE = re.compile(r"<[^>]*>")
 
 _SELECTOR_KEYS = (
     "login_email", "login_password", "login_submit", "logged_in_mark",
-    "list_item", "item_link", "item_title", "item_date", "body",
+    "list_item", "item_author", "item_title", "item_date", "body",
 )
 
 
@@ -116,7 +116,12 @@ def load_config(path: str = "config.yaml") -> Config:
     noise = sel_raw.get("noise") or []
     if not isinstance(noise, list) or not all(isinstance(x, str) for x in noise):
         raise ConfigError("selectors.noise は文字列のリストである必要があります")
-    selectors = Selectors(noise=list(noise), **sel_values)
+    item_image = sel_raw.get("item_image") or ""
+    if not isinstance(item_image, str):
+        raise ConfigError("selectors.item_image は文字列である必要があります")
+    if _PLACEHOLDER_RE.search(item_image):  # 任意項目: プレースホルダ残置は無効化
+        item_image = ""
+    selectors = Selectors(noise=list(noise), item_image=item_image, **sel_values)
 
     retry_raw = data.get("retry") or {}
     if not isinstance(retry_raw, dict):
@@ -126,10 +131,15 @@ def load_config(path: str = "config.yaml") -> Config:
         backoff_seconds=_as_number(retry_raw.get("backoff_seconds"), "retry.backoff_seconds", 0, 30, default=2),
     )
 
+    author_filter = data.get("author_filter") or ""
+    if not isinstance(author_filter, str):
+        raise ConfigError("author_filter は文字列である必要があります")
+
     return Config(
         login_url=login_url,
         list_url=list_url,
         selectors=selectors,
+        author_filter=author_filter,
         headless=_as_bool(data.get("headless"), "headless", default=True),
         timeout_ms=_as_int(data.get("timeout_ms"), "timeout_ms", 1000, 120000, default=15000),
         throttle_seconds=_as_number(data.get("throttle_seconds"), "throttle_seconds", 0, 60, default=2),

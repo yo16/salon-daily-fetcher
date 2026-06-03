@@ -18,7 +18,7 @@ def _config() -> Config:
         list_url="https://salon.jp/list",
         selectors=Selectors(
             login_email="a", login_password="b", login_submit="c",
-            logged_in_mark=".mark", list_item="e", item_link="f",
+            logged_in_mark=".mark", list_item="e", item_author="f",
             item_title="g", item_date="h", body="i",
         ),
         timeout_ms=3000,

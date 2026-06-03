@@ -7,7 +7,10 @@ from datetime import date
 
 import pytest
 
-from src.textutil import derive_id, normalize_date, clean_text, with_retry
+from src.textutil import (
+    derive_id, normalize_date, clean_text, with_retry,
+    article_id_from_src, hash_id,
+)
 
 
 # --- derive_id ----------------------------------------------------------------
@@ -67,9 +70,46 @@ def test_normalize_date_yesterday_keyword():
     assert normalize_date("昨日", today=date(2026, 6, 2)) == "2026-06-01"
 
 
+def test_normalize_date_relative_hours_is_today():
+    assert normalize_date("19時間前", today=date(2026, 6, 3)) == "2026-06-03"
+
+
+def test_normalize_date_relative_minutes_is_today():
+    assert normalize_date("5分前", today=date(2026, 6, 3)) == "2026-06-03"
+
+
+def test_normalize_date_relative_days_ago():
+    assert normalize_date("3日前", today=date(2026, 6, 3)) == "2026-05-31"
+
+
+def test_normalize_date_relative_weeks_ago():
+    assert normalize_date("2週間前", today=date(2026, 6, 3)) == "2026-05-20"
+
+
+def test_normalize_date_day_before_yesterday():
+    assert normalize_date("一昨日", today=date(2026, 6, 3)) == "2026-06-01"
+
+
 def test_normalize_date_invalid_raises():
     with pytest.raises(ValueError):
         normalize_date("日付不明")
+
+
+# --- article_id_from_src / hash_id -------------------------------------------
+def test_article_id_from_src_thumbnail():
+    src = "/thumbnails/show/articles/9Mc391al0FO/320"
+    assert article_id_from_src(src) == "9Mc391al0FO"
+
+
+def test_article_id_from_src_none_or_unmatched():
+    assert article_id_from_src(None) is None
+    assert article_id_from_src("/user_icons/get/abc") is None
+
+
+def test_hash_id_stable_and_length():
+    assert hash_id("本文テキスト") == hash_id("本文テキスト")
+    assert len(hash_id("x")) == 12
+    assert hash_id("a") != hash_id("b")
 
 
 def test_normalize_date_invalid_calendar_raises():
