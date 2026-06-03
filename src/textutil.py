@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 _SAFE_RE = re.compile(r"[^A-Za-z0-9_-]")
 _FULL_DATE_RE = re.compile(r"(\d{4})\D{1,3}(\d{1,2})\D{1,3}(\d{1,2})")
 _MD_DATE_RE = re.compile(r"(\d{1,2})\D{1,3}(\d{1,2})")
+_ARTICLE_ID_RE = re.compile(r"/articles/([^/?#]+)")
 
 
 def derive_id(url: str) -> str:
@@ -30,6 +31,19 @@ def derive_id(url: str) -> str:
     return hashlib.sha1(url.encode("utf-8")).hexdigest()[:12]
 
 
+def article_id_from_src(src: str | None) -> str | None:
+    """画像等の src/href から `/articles/<id>/` の記事IDを取り出す。無ければ None。"""
+    if not src:
+        return None
+    m = _ARTICLE_ID_RE.search(src)
+    return m.group(1) if m else None
+
+
+def hash_id(text: str) -> str:
+    """本文等のテキストから安定したハッシュID（SHA1先頭12桁）を生成する。"""
+    return hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:12]
+
+
 def normalize_date(raw: str, today: date | None = None) -> str:
     """日付表記を ISO 'YYYY-MM-DD' に正規化する（design §6.2）。
 
@@ -40,10 +54,32 @@ def normalize_date(raw: str, today: date | None = None) -> str:
     if raw is None:
         raise ValueError("date is None")
     s = raw.strip()
-    if any(k in s for k in ("今日", "本日")):
-        return today.isoformat()
+
+    # キーワード（"一昨日" を "昨日" より先に判定）
+    if "一昨日" in s:
+        return (today - timedelta(days=2)).isoformat()
     if "昨日" in s:
         return (today - timedelta(days=1)).isoformat()
+    if any(k in s for k in ("今日", "本日", "たった今", "さっき")):
+        return today.isoformat()
+
+    # 相対表記（例: 19時間前 / 3日前 / 2週間前 / 1ヶ月前 / 1年前）
+    if re.search(r"(?:分|時間|秒)前", s):
+        return today.isoformat()
+    m = re.search(r"(\d+)\s*日前", s)
+    if m:
+        return (today - timedelta(days=int(m.group(1)))).isoformat()
+    m = re.search(r"(\d+)\s*週間前", s)
+    if m:
+        return (today - timedelta(weeks=int(m.group(1)))).isoformat()
+    m = re.search(r"(\d+)\s*(?:ヶ月|か月|カ月|ケ月)前", s)
+    if m:
+        return (today - timedelta(days=30 * int(m.group(1)))).isoformat()
+    m = re.search(r"(\d+)\s*年前", s)
+    if m:
+        return (today - timedelta(days=365 * int(m.group(1)))).isoformat()
+
+    # 絶対表記
     m = _FULL_DATE_RE.search(s)
     if m:
         return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()

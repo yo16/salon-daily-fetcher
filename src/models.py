@@ -43,17 +43,22 @@ class Credentials:
 
 @dataclass(frozen=True)
 class Selectors:
-    """サイト構造に依存する CSS セレクタ群（config.yaml 由来）。"""
+    """サイト構造に依存する CSS セレクタ群（config.yaml 由来）。
+
+    本文はタイムライン(list_item)内から相対的に取得する（個別ページ遷移なし）。
+    item_author は投稿者フィルタ用、item_image は記事ID抽出用（任意）。
+    """
 
     login_email: str
     login_password: str
     login_submit: str
     logged_in_mark: str
     list_item: str
-    item_link: str
+    item_author: str
     item_title: str
     item_date: str
     body: str
+    item_image: str = ""
     noise: list[str] = field(default_factory=list)
 
 
@@ -72,6 +77,7 @@ class Config:
     login_url: str
     list_url: str
     selectors: Selectors
+    author_filter: str = ""              # 取得対象を投稿者名で絞る（空=フィルタ無効）
     headless: bool = True
     timeout_ms: int = 15000
     throttle_seconds: float = 2.0
