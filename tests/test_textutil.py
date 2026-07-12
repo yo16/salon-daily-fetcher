@@ -3,7 +3,7 @@
 （fetch.py の Playwright 操作は実サイト/ブラウザが必要なため、ここでは純粋ロジックを検証する。）
 """
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -70,12 +70,23 @@ def test_normalize_date_yesterday_keyword():
     assert normalize_date("昨日", today=date(2026, 6, 2)) == "2026-06-01"
 
 
-def test_normalize_date_relative_hours_is_today():
-    assert normalize_date("19時間前", today=date(2026, 6, 3)) == "2026-06-03"
+def test_normalize_date_relative_hours_subtracts_from_now():
+    # 6/6 09:30 の「19時間前」は 6/5 14:30 → 前日になる
+    assert normalize_date("19時間前", now=datetime(2026, 6, 6, 9, 30)) == "2026-06-05"
 
 
-def test_normalize_date_relative_minutes_is_today():
-    assert normalize_date("5分前", today=date(2026, 6, 3)) == "2026-06-03"
+def test_normalize_date_relative_hours_same_day_without_midnight_cross():
+    # 6/6 23:00 の「19時間前」は 6/6 04:00 → 当日のまま
+    assert normalize_date("19時間前", now=datetime(2026, 6, 6, 23, 0)) == "2026-06-06"
+
+
+def test_normalize_date_relative_minutes_crosses_midnight():
+    # 6/6 00:02 の「5分前」は 6/5 23:57 → 前日
+    assert normalize_date("5分前", now=datetime(2026, 6, 6, 0, 2)) == "2026-06-05"
+
+
+def test_normalize_date_relative_seconds_uses_now():
+    assert normalize_date("30秒前", now=datetime(2026, 6, 6, 12, 0, 30)) == "2026-06-06"
 
 
 def test_normalize_date_relative_days_ago():

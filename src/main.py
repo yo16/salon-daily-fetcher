@@ -13,7 +13,7 @@
 
 import os
 import time
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -96,9 +96,9 @@ def main() -> int:
 
                 ensure_logged_in(page, cfg, creds, logger=step("login"))
 
-                today = date.today()
+                now = datetime.now().astimezone()
                 # 本文はタイムライン内にインライン表示されるため、ここで本文込みで取得する
-                articles = extract_articles(page, cfg, today=today, logger=step("extract"))
+                articles = extract_articles(page, cfg, now=now, logger=step("extract"))
                 metas = [a.meta for a in articles]
                 by_id = {a.meta.id: a for a in articles}
                 summary.listed_count = len(metas)

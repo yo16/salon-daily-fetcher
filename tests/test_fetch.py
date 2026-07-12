@@ -3,7 +3,7 @@
 実ブラウザは使わず、Playwright の要素APIを模した Fake で挙動を確認する。
 """
 
-from datetime import date
+from datetime import datetime
 
 from src.fetch import extract_articles
 from src.models import Config, RetryPolicy, Selectors
@@ -88,19 +88,19 @@ def _other_item():
 
 def test_extract_filters_by_author_and_parses_fields():
     page = FakePage([_target_item(), _other_item()])
-    arts = extract_articles(page, _config(), today=date(2026, 6, 3))
+    arts = extract_articles(page, _config(), now=datetime(2026, 6, 3, 9, 0))
     assert len(arts) == 1                       # 対象投稿者のみ
     a = arts[0]
     assert a.meta.id == "9Mc391al0FO"           # 画像srcから記事ID
     assert a.meta.title == "第2ラウンドの準備が進む"
-    assert a.meta.date == "2026-06-03"          # 「19時間前」→当日
+    assert a.meta.date == "2026-06-02"          # 6/3 09:00 の「19時間前」→ 6/2
     assert a.body == "本文1\n\n本文2"            # clean_text 済み
     assert a.meta.url == "https://salon.jp/nishino#9Mc391al0FO"
 
 
 def test_extract_without_author_filter_returns_all():
     page = FakePage([_target_item(), _other_item()])
-    arts = extract_articles(page, _config(author_filter=""), today=date(2026, 6, 3))
+    arts = extract_articles(page, _config(author_filter=""), now=datetime(2026, 6, 3, 9, 0))
     assert len(arts) == 2
 
 
@@ -112,7 +112,7 @@ def test_extract_id_falls_back_to_body_hash_when_no_image():
         ".timeline-body-text": FakeNode("ハッシュ対象の本文"),
         # item_image 無し
     })
-    arts = extract_articles(FakePage([item]), _config(), today=date(2026, 6, 3))
+    arts = extract_articles(FakePage([item]), _config(), now=datetime(2026, 6, 3))
     assert len(arts) == 1
     assert len(arts[0].meta.id) == 12           # 本文ハッシュ(12桁)
     assert arts[0].meta.date == "2026-05-31"    # 「3日前」

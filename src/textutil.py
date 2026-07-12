@@ -7,7 +7,7 @@ Playwright に依存しないため単体テストが容易。fetch.py から利
 import hashlib
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import urlsplit
 
 _SAFE_RE = re.compile(r"[^A-Za-z0-9_-]")
@@ -44,13 +44,19 @@ def hash_id(text: str) -> str:
     return hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:12]
 
 
-def normalize_date(raw: str, today: date | None = None) -> str:
+def normalize_date(raw: str, today: date | None = None,
+                   now: datetime | None = None) -> str:
     """日付表記を ISO 'YYYY-MM-DD' に正規化する（design §6.2）。
 
     解析できない場合は ValueError。年が無い表記は today の年で補完する。
+    'X時間前 / X分前 / X秒前' は now（現在時刻）から逆算した日付を返す
+    （例: 6/6 09:30 に「19時間前」→ 6/5）。深夜跨ぎでは前日になり得る。
+    now 省略時は現在時刻、today 省略時は now.date() を用いる。
     """
+    if now is None:
+        now = datetime.now().astimezone()
     if today is None:
-        today = date.today()
+        today = now.date()
     if raw is None:
         raise ValueError("date is None")
     s = raw.strip()
@@ -63,9 +69,20 @@ def normalize_date(raw: str, today: date | None = None) -> str:
     if any(k in s for k in ("今日", "本日", "たった今", "さっき")):
         return today.isoformat()
 
-    # 相対表記（例: 19時間前 / 3日前 / 2週間前 / 1ヶ月前 / 1年前）
+    # 相対表記（時・分・秒前は現在時刻 now から逆算 → 深夜跨ぎで前日になり得る）
+    m = re.search(r"(\d+)\s*時間前", s)
+    if m:
+        return (now - timedelta(hours=int(m.group(1)))).date().isoformat()
+    m = re.search(r"(\d+)\s*分前", s)
+    if m:
+        return (now - timedelta(minutes=int(m.group(1)))).date().isoformat()
+    m = re.search(r"(\d+)\s*秒前", s)
+    if m:
+        return (now - timedelta(seconds=int(m.group(1)))).date().isoformat()
+    # 数値の無い「時間前」等（稀）は当日扱いにフォールバック
     if re.search(r"(?:分|時間|秒)前", s):
         return today.isoformat()
+    # 日・週・月・年前は実行日 today から逆算
     m = re.search(r"(\d+)\s*日前", s)
     if m:
         return (today - timedelta(days=int(m.group(1)))).isoformat()

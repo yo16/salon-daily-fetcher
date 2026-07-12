@@ -7,7 +7,7 @@
 - URL/セレクタは config 参照（コードに直書きしない）。
 """
 
-from datetime import date, datetime
+from datetime import datetime
 
 from playwright.sync_api import Error as PWError
 
@@ -58,9 +58,15 @@ def _body_text(el, sel, body_as_markdown: bool) -> str:
     return clean_text(body_el.text_content() or "")
 
 
-def extract_articles(page, config: Config, today: date | None = None, logger=None) -> list[Article]:
-    """タイムラインから対象投稿者の投稿を抽出し、本文込みの Article を返す（newest_first）。"""
+def extract_articles(page, config: Config, now: datetime | None = None, logger=None) -> list[Article]:
+    """タイムラインから対象投稿者の投稿を抽出し、本文込みの Article を返す（newest_first）。
+
+    now は日付正規化の基準時刻（「19時間前」等を逆算するために時刻まで必要）。
+    """
     sel = config.selectors
+    if now is None:
+        now = datetime.now().astimezone()
+    today = now.date()
 
     def _open():
         page.goto(config.list_url, timeout=config.timeout_ms)
@@ -85,9 +91,9 @@ def extract_articles(page, config: Config, today: date | None = None, logger=Non
             continue
         raw_date = _text(el.query_selector(sel.item_date))
         try:
-            d = normalize_date(raw_date, today)
+            d = normalize_date(raw_date, today=today, now=now)
         except ValueError:
-            d = (today or date.today()).isoformat()
+            d = today.isoformat()
             if logger is not None:
                 logger.warning(f"extract: 日付解析不可 raw={raw_date!r} → {d} を使用")
         aid = _article_id(el, sel, body)
