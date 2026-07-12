@@ -94,6 +94,6 @@ def write_summary(summary: RunSummary, logger: logging.Logger) -> None:
             elapsed = ""
     msg = (
         f"listed={s.listed_count} new={s.new_count} skipped={s.skipped_count} "
-        f"failed={s.failed_count} status={s.status}{elapsed}"
+        f"failed={s.failed_count} exported={s.exported_count} status={s.status}{elapsed}"
     )
     step("summary").info(msg)

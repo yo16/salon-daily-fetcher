@@ -125,7 +125,8 @@ class IndexEntry:
     listed_at: str               # 一覧で最初に観測した時刻
     body_fetched: bool = False
     fetched_at: str | None = None
-    md_path: str | None = None   # data/ からの相対パス
+    md_path: str | None = None   # data/ からの相対パス（export 後は exported/ 配下を指す）
+    exported_at: str | None = None  # newsletter 取込先へ受け渡した時刻（未受渡し=None）
 
 
 @dataclass
@@ -137,5 +138,6 @@ class RunSummary:
     new_count: int = 0           # 今回新規取得した本文件数
     skipped_count: int = 0       # 既取得でスキップ
     failed_count: int = 0
+    exported_count: int = 0      # 今回 newsletter 取込先へ受け渡した件数
     finished_at: str | None = None
     status: str = "success"      # success | partial | failed

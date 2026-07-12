@@ -7,6 +7,7 @@ from src.models import Article, ArticleMeta, IndexEntry
 from src.output import (
     load_index, save_index, merge_listed, select_targets,
     save_article_md, upsert_index, rebuild_corpus, export_csv,
+    export_pending, mark_all_exported,
 )
 
 
@@ -137,6 +138,100 @@ def test_rebuild_corpus_is_idempotent(tmp_path):
     rebuild_corpus(index, base_dir=base)
     second = (tmp_path / "corpus.jsonl").read_text(encoding="utf-8")
     assert first == second  # 再生成しても重複・差分なし
+
+
+# --- export_pending / mark_all_exported --------------------------------------
+def test_index_roundtrip_preserves_exported_at(tmp_path):
+    path = str(tmp_path / "index.json")
+    index = {"1": IndexEntry(id="1", title="t", date="2026-06-02", url="u",
+                             listed_at="x", body_fetched=True, fetched_at="y",
+                             md_path="exported/2026-06-02/1.md",
+                             exported_at="2026-06-04T00:00:00+09:00")}
+    save_index(index, path)
+    loaded = load_index(path)
+    assert loaded["1"].exported_at == "2026-06-04T00:00:00+09:00"
+    assert loaded["1"].md_path == "exported/2026-06-02/1.md"
+
+
+def _fetched_index(base, *ids, body="b"):
+    """base に本文を保存し、body_fetched 済みの index を組み立てて返すヘルパ。"""
+    index: dict = {}
+    for i in ids:
+        rel = save_article_md(_article(i, body=f"{body}-{i}"), base_dir=base)
+        upsert_index(index, _article(i, body=f"{body}-{i}"), rel)
+    return index
+
+
+def test_export_pending_copies_archives_and_marks(tmp_path):
+    base = str(tmp_path / "data")
+    export_dir = tmp_path / "newsletter_import"
+    index = _fetched_index(base, "1")
+    assert (tmp_path / "data/articles/2026-06-02/1.md").exists()
+
+    n = export_pending(index, str(export_dir), data_dir=base,
+                       now="2026-06-04T00:00:00+09:00")
+    assert n == 1
+    # 取込先 inbox へ <date>/<id>.md 構造でコピー
+    assert (export_dir / "2026-06-02/1.md").exists()
+    # ローカルは data/exported へ移動、元は消える
+    assert (tmp_path / "data/exported/2026-06-02/1.md").exists()
+    assert not (tmp_path / "data/articles/2026-06-02/1.md").exists()
+    # index 更新
+    assert index["1"].exported_at == "2026-06-04T00:00:00+09:00"
+    assert index["1"].md_path == "exported/2026-06-02/1.md"
+    # 冪等: 2 回目は受け渡し 0 件
+    assert export_pending(index, str(export_dir), data_dir=base) == 0
+
+
+def test_export_pending_skips_unfetched(tmp_path):
+    base = str(tmp_path / "data")
+    export_dir = tmp_path / "imp"
+    index = {"1": IndexEntry(id="1", title="t", date="2026-06-02", url="u",
+                             listed_at="x", body_fetched=False)}
+    assert export_pending(index, str(export_dir), data_dir=base) == 0
+    assert not export_dir.exists()
+
+
+def test_export_pending_reconciles_when_already_archived(tmp_path):
+    """前回 移動済みだが index 未更新だったケースを復旧（再配信しない）。"""
+    base = tmp_path / "data"
+    export_dir = tmp_path / "imp"
+    archived = base / "exported/2026-06-02/1.md"
+    archived.parent.mkdir(parents=True, exist_ok=True)
+    archived.write_text("---\nid: '1'\n---\n\nbody\n", encoding="utf-8")
+    index = {"1": IndexEntry(id="1", title="t", date="2026-06-02", url="u",
+                             listed_at="x", body_fetched=True, fetched_at="y",
+                             md_path="articles/2026-06-02/1.md")}
+    n = export_pending(index, str(export_dir), data_dir=str(base),
+                       now="2026-06-04T00:00:00+09:00")
+    assert n == 0  # 復旧は新規受け渡しに数えない
+    assert index["1"].exported_at == "2026-06-04T00:00:00+09:00"
+    assert index["1"].md_path == "exported/2026-06-02/1.md"
+    assert not (export_dir / "2026-06-02/1.md").exists()  # 再コピーしない
+
+
+def test_rebuild_corpus_after_export_reads_from_archived(tmp_path):
+    base = str(tmp_path / "data")
+    export_dir = tmp_path / "imp"
+    index = _fetched_index(base, "1", body="hello")
+    export_pending(index, str(export_dir), data_dir=base)
+    n = rebuild_corpus(index, base_dir=base)
+    assert n == 1
+    rec = json.loads((tmp_path / "data/corpus.jsonl").read_text(encoding="utf-8").strip())
+    assert rec["id"] == "1" and rec["body"] == "hello-1"
+
+
+def test_mark_all_exported_archives_without_copy(tmp_path):
+    base = str(tmp_path / "data")
+    index = _fetched_index(base, "1", "2")
+    n = mark_all_exported(index, data_dir=base, now="2026-06-04T00:00:00+09:00")
+    assert n == 2
+    for i in ("1", "2"):
+        assert index[i].exported_at == "2026-06-04T00:00:00+09:00"
+        assert index[i].md_path == f"exported/2026-06-02/{i}.md"
+        assert (tmp_path / f"data/exported/2026-06-02/{i}.md").exists()
+        assert not (tmp_path / f"data/articles/2026-06-02/{i}.md").exists()
+    assert mark_all_exported(index, data_dir=base) == 0  # 冪等
 
 
 # --- export_csv ---------------------------------------------------------------

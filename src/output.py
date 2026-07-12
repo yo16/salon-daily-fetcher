@@ -9,6 +9,7 @@
 import csv
 import json
 import os
+import shutil
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +60,7 @@ def load_index(path: str = "data/index.json") -> dict[str, IndexEntry]:
             body_fetched=bool(rec.get("body_fetched", False)),
             fetched_at=rec.get("fetched_at"),
             md_path=rec.get("md_path"),
+            exported_at=rec.get("exported_at"),
         )
     return index
 
@@ -151,6 +153,85 @@ def upsert_index(index: dict[str, IndexEntry], article: Article, md_path: str) -
     entry.body_fetched = True
     entry.fetched_at = article.fetched_at
     entry.md_path = md_path
+
+
+# --- newsletter 取込先への受け渡し（export）-----------------------------------
+def _archive_exported(entry: IndexEntry, base: Path, archived_subdir: str) -> None:
+    """ローカル md を data/<archived_subdir>/<date>/<id>.md へ移動し md_path を更新する。
+
+    data/articles に取得物を無条件に残さないための「処理済み」退避。
+    - 元ファイルがあれば移動（同一ドライブ内アトミック）して md_path を更新。
+    - 既に退避済み（元無し・退避先あり）なら md_path の更新のみ。
+    - どちらも無ければ md_path は変更しない（実体が失われている）。
+    """
+    if not entry.md_path:
+        return
+    archived_rel = f"{archived_subdir}/{entry.date}/{entry.id}.md"
+    src = base / entry.md_path
+    archived = base / archived_rel
+    if src.exists():
+        archived.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(src, archived)
+        entry.md_path = archived_rel
+    elif archived.exists():
+        entry.md_path = archived_rel
+
+
+def export_pending(index: dict[str, IndexEntry], export_dir: str,
+                   data_dir: str = "data", archived_subdir: str = "exported",
+                   now: str | None = None, logger=None) -> int:
+    """未受渡し(exported_at=None)の本文を newsletter 取込先へ受け渡す。戻り値: 受渡し件数。
+
+    各記事を export_dir/<date>/<id>.md へコピー（取込先の inbox）し、ローカル md は
+    data/<archived_subdir>/ へ移動して二重送信を防ぐ。index は exported_at と
+    （移動後の）md_path を更新する。コピー→移動→index更新の途中で中断しても、
+    次回は「退避済み・index未更新」を検出して整合を取り戻す（自己修復）。
+    """
+    now = now or _now_iso()
+    base = Path(data_dir)
+    dest_root = Path(export_dir)
+    count = 0
+    for entry in _sorted_entries(index):
+        if not entry.body_fetched or entry.exported_at or not entry.md_path:
+            continue
+        src = base / entry.md_path
+        archived = base / f"{archived_subdir}/{entry.date}/{entry.id}.md"
+        if src.exists():
+            dest = dest_root / f"{entry.date}/{entry.id}.md"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            _archive_exported(entry, base, archived_subdir)
+            entry.exported_at = now
+            count += 1
+            if logger is not None:
+                logger.info(f"exported {entry.id} -> {dest}")
+        elif archived.exists():
+            # 前回 移動済みだが index 未更新だった場合の復旧（取込先へは配信済み前提）。
+            entry.md_path = f"{archived_subdir}/{entry.date}/{entry.id}.md"
+            entry.exported_at = now
+            if logger is not None:
+                logger.info(f"reconciled {entry.id} (already archived)")
+        # 元・退避先ともに無い場合は実体が失われているためスキップ（未受渡しのまま）。
+    return count
+
+
+def mark_all_exported(index: dict[str, IndexEntry], data_dir: str = "data",
+                      archived_subdir: str = "exported", now: str | None = None) -> int:
+    """既に取込先へ渡し済みの全 body_fetched 記事を export 済みにする一回限りのバックフィル。
+
+    取込先へのコピーは行わず、ローカル md のみ data/<archived_subdir> へ退避して
+    exported_at を付与する。戻り値: マークした件数。
+    """
+    now = now or _now_iso()
+    base = Path(data_dir)
+    count = 0
+    for entry in _sorted_entries(index):
+        if not entry.body_fetched or entry.exported_at:
+            continue
+        _archive_exported(entry, base, archived_subdir)
+        entry.exported_at = now
+        count += 1
+    return count
 
 
 # --- 派生成果物 ---------------------------------------------------------------

@@ -125,6 +125,14 @@ def main() -> int:
                 summary.skipped_count = max(
                     0, summary.listed_count - summary.new_count - summary.failed_count
                 )
+                # newsletter 取込先へ未受渡しの本文を受け渡す（SDF_EXPORT_DIR が指す inbox）。
+                # 受け渡した md はローカルで data/exported/ へ退避し、二重送信を防ぐ。
+                # 未設定なら受け渡し/退避はスキップ（取得のみ。手動実行時の既定）。
+                export_dir = os.environ.get("SDF_EXPORT_DIR", "").strip()
+                if export_dir:
+                    summary.exported_count = output.export_pending(
+                        index, export_dir, logger=step("export")
+                    )
                 output.save_index(index)
                 output.rebuild_corpus(index)
                 if cfg.output_csv:
