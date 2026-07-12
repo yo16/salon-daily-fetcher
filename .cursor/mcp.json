@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "n8n": {
+      "command": "python",
+      "args": ["${workspaceFolder}/scripts/n8n_mcp.py"],
+      "envFile": "${workspaceFolder}/.env.local"
+    }
+  }
+}
