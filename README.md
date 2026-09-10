@@ -4,8 +4,34 @@ Salon.JP の会員ページに自動ログインし、特定サロンの**記事
 
 - 詳細仕様: [`docs/requirements.md`](docs/requirements.md)（要件定義 v1.0）
 - 設計: [`docs/design.md`](docs/design.md)（設計 v1.0）
+- 関連リポジトリ: [`newsletter-ai-chat`](https://github.com/yo16/newsletter-ai-chat)（取得した記事を使うチャット本体。→ [関連リポジトリ](#関連リポジトリ)）
 
 > **利用範囲**: 本ツールは、利用者本人が正規に閲覧権限を持つコンテンツを私的にアーカイブ／閲覧効率化する目的に限定します。コンテンツの再配布は行わず、過剰アクセスを避け、サイトの利用規約に反しない範囲で利用してください。
+
+---
+
+## 関連リポジトリ
+
+このリポジトリは**記事を取得する側**で、チャット画面やサーバは持ちません。取得した記事は隣のリポジトリ `newsletter-ai-chat` に受け渡し、そちらのチャットで利用します。
+
+| リポジトリ | 役割 | 起動方法 |
+|---|---|---|
+| `salon-daily-fetcher`（本リポジトリ） | Salon.JP から記事を取得して Markdown 保存。新着分を `newsletter-ai-chat/import/` へ受け渡す | `run.bat`（または `python -m src.main`）。実行後に終了する |
+| [`newsletter-ai-chat`](https://github.com/yo16/newsletter-ai-chat)<br>ローカル: `D:\Public\github\yo16\newsletter-ai-chat` | 受け取った記事を OpenAI Vector Store に登録し、相談型チャット（Next.js）を提供 | `npm run dev` → `http://localhost:3000`（`/register` は手動登録画面）。セットアップはそちらの README を参照 |
+
+日次の流れ:
+
+1. 本リポジトリの `run.bat` を実行 → ログイン・取得・保存 → 新着記事を `newsletter-ai-chat/import/<日付>/<id>.md` へコピー（ローカル側は `data/exported/` へ退避）→ `newsletter-ai-chat` で `npm run import` を実行して Vector Store に登録
+2. `newsletter-ai-chat` で `npm run dev` を起動し、チャットで質問する
+
+受け渡し先は `run.bat` 内の既定値です。リポジトリの場所を変えた場合は環境変数で上書きします。
+
+| 環境変数 | 既定値 | 意味 |
+|---|---|---|
+| `SDF_NEWSLETTER_DIR` | `D:\Public\github\yo16\newsletter-ai-chat` | 取得後に `npm run import` を実行するプロジェクト |
+| `SDF_EXPORT_DIR` | `%SDF_NEWSLETTER_DIR%\import` | 記事をコピーする取込先 inbox |
+
+> `python -m src.main` を直接実行した場合は `SDF_EXPORT_DIR` が未設定のため受け渡しは行われません（取得・保存のみ）。
 
 ---
 
@@ -67,13 +93,14 @@ SALON_PASSWORD=あなたのパスワード
 ```powershell
 python -m src.main
 ```
+> 直接実行では `newsletter-ai-chat` への受け渡しは行われません（`SDF_EXPORT_DIR` 未設定のため）。受け渡しまで行う場合は `run.bat` を使うか、`SDF_EXPORT_DIR` を設定してください。
 
 ### 4.2 ショートカットから実行（推奨）
 1. エクスプローラで `run.bat` を右クリック → 「ショートカットの作成」
 2. 作成したショートカットをデスクトップへ移動
-3. ダブルクリックで起動 → 自動でログイン・取得・保存して終了
+3. ダブルクリックで起動 → 自動でログイン・取得・保存 → 新着記事を `newsletter-ai-chat` へ受け渡して `npm run import` を実行 → 終了
 
-`run.bat` は conda 環境の Python を自動で見つけて `python -m src.main` を実行します。エラー時はログの場所を表示して一時停止します（自動実行時は環境変数 `SDF_NO_PAUSE=1` で無効化）。
+`run.bat` は conda 環境の Python を自動で見つけて `python -m src.main` を実行し、成功時は続けて `newsletter-ai-chat` で `npm run import` を実行します（→ [関連リポジトリ](#関連リポジトリ)）。エラー時はログの場所を表示して一時停止します（自動実行時は環境変数 `SDF_NO_PAUSE=1` で無効化）。
 
 ## 5. 出力物
 
@@ -83,6 +110,7 @@ python -m src.main
 |---|---|---|
 | `data/index.json` | JSON | 取得済み記事の管理マスタ（id をキーに累積マージ・履歴保持） |
 | `data/articles/<日付>/<id>.md` | Markdown | 本文（人が読む用。先頭にメタ情報のフロントマター） |
+| `data/exported/<日付>/<id>.md` | Markdown | `newsletter-ai-chat` へ受け渡し済みの本文（受け渡し時に `articles/` からここへ移動） |
 | `data/corpus.jsonl` | JSONL | AI/LLM 取り込み用（1行1記事 `{id,title,date,url,body}`） |
 | `data/index.csv` | CSV | 一覧の表計算用（`output_csv: true` のときのみ生成） |
 
@@ -122,7 +150,7 @@ salon-daily-fetcher/
 ├─ tests/          # pytest（サイト非依存ロジック）
 ├─ config.yaml     # URL・セレクタ・動作設定（秘密情報は含めない）
 ├─ .env.local      # 認証情報（コミット禁止）
-├─ data/           # 出力（index.json / articles / corpus.jsonl）※gitignore
+├─ data/           # 出力（index.json / articles / exported / corpus.jsonl）※gitignore
 ├─ logs/           # ログ・デバッグ成果物 ※gitignore
 ├─ session/        # ログインセッション（storage state）※gitignore
 ├─ run.bat         # 起動スクリプト（ショートカットから実行）
@@ -135,4 +163,5 @@ salon-daily-fetcher/
 2. `list_url` の一覧から各記事のメタ（タイトル/日時/URL）を抽出
 3. `index.json` と突き合わせ、当日から過去へ遡って未取得分のみ本文を取得（上限件数まで・記事間は待機）
 4. 本文を Markdown 保存、`index.json` を累積マージ、`corpus.jsonl` を再生成
-5. ログにサマリを出力して終了
+5. `SDF_EXPORT_DIR` が設定されていれば（`run.bat` 経由）、未受け渡しの本文を `newsletter-ai-chat/import/` へコピーし、ローカルの md は `data/exported/` へ退避
+6. ログにサマリを出力して終了（`run.bat` はこの後 `newsletter-ai-chat` で `npm run import` を実行）
