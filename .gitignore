@@ -158,3 +158,7 @@ data/
 
 # 認証情報(.env.local)は上部の .env.* で除外済み。雛形だけはコミットする
 !.env.local.example
+
+# bd (beads) 1.3.2 runtime files
+*.gate.lock*
+.beads-credential-key

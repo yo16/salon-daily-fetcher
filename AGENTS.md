@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **bd** (beads) for issue tracking. Run `bd prime` to get started (the rules in this file and CLAUDE.md take precedence over its output).
 
 ## Quick Reference
 
@@ -9,8 +9,11 @@ bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
 bd close <id>         # Complete work
-bd sync               # Sync with git
 ```
+
+`.beads/issues.jsonl` is written and `git add`-ed automatically after every bd write (`export.auto`), so there is no separate sync step.
+
+**Do not** run `bd sync`, `bd dolt push`, or `bd dolt remote add`: this project intentionally has no Dolt remote. Ignore the warning `beads: auto-export warning: no Dolt remote configured.` and the "repair" command it prints.
 
 ## Landing the Plane (Session Completion)
 
@@ -24,7 +27,6 @@ bd sync               # Sync with git
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
